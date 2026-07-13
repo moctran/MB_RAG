@@ -30,6 +30,8 @@ upgrade and install with a longer timeout:
 python3 -m pip install --timeout 120 --retries 10 -r requirements.txt
 ```
 
+
+
 ## Build The Index
 
 ```bash
@@ -46,6 +48,8 @@ python3 naive_rag.py build --pdf-dir pdf_files --index-path rag_index.json
 python3 naive_rag.py build --extractor pdfplumber --extract-timeout 30
 python3 naive_rag.py build --extractor ocr --ocr-lang eng --ocr-dpi 120
 ```
+
+
 
 ## Ask Questions
 
@@ -84,6 +88,8 @@ The LLM is instructed to answer only from retrieved PDF chunks and cite sources 
 ```bash
 python3 naive_rag.py inspect
 ```
+
+
 
 ## Advanced RAG
 
@@ -127,6 +133,8 @@ Not implemented in this local version:
 - MyScaleDB MSTG indexing. That requires running MyScaleDB or another vector database.
 - True neural embeddings or fine-tuned dynamic embeddings. The current version uses local hashed TF-IDF vectors so it works without model downloads.
 - Neural cross-encoder re-ranking. The current re-ranker is lexical/semantic-score based.
+
+
 
 ## FAISS + OpenAI RAG
 
@@ -183,6 +191,87 @@ Notes:
 - The default embedding model is `text-embedding-3-small`.
 - The FAISS index uses normalized vectors with `IndexFlatIP`, which gives cosine-similarity style search.
 
+
+
+## Local GraphRAG
+
+The GraphRAG version is separate from the naive, advanced, and FAISS scripts.
+It builds a lightweight knowledge graph from local PDF chunks:
+
+- extracts legal/domain entities from each chunk,
+- connects entities that co-occur in the same chunk,
+- groups the entity graph into communities,
+- supports local search over entity neighborhoods and global search over community summaries.
+
+Build the graph index:
+
+```bash
+python3 graph_rag.py build --extractor auto
+```
+
+The GraphRAG builder defaults to Vietnamese OCR settings when OCR is needed:
+`--ocr-lang vie+eng --ocr-dpi 180 --ocr-psm 4`. Rebuild the graph index after
+changing OCR settings because OCR text is stored inside the index.
+
+Default graph index path:
+
+```text
+graph_index/graph_rag_index.json
+```
+
+Ask with automatic mode selection:
+
+```bash
+python3 graph_rag.py ask "quy định về kiểm soát nội bộ ngân hàng"
+```
+
+If `OPENAI_API_KEY` is set, `ask` automatically uses the retrieved graph context
+to produce a natural Vietnamese answer with citations. Without an API key, it
+falls back to an extractive answer.
+
+Force local search for entity-specific/deep questions:
+
+```bash
+python3 graph_rag.py ask "tài khoản thanh toán liên quan đến tổ chức cung ứng dịch vụ thanh toán như thế nào?" --mode local
+```
+
+Force global search for broad synthesis questions:
+
+```bash
+python3 graph_rag.py ask "tóm tắt tổng quan các nhóm quy định chính trong bộ tài liệu" --mode global
+```
+
+Ask with GraphRAG context plus OpenAI LLM generation:
+
+```bash
+export OPENAI_API_KEY="your_api_key_here"
+python3 graph_rag.py ask "tóm tắt tổng quan các nhóm quy định chính trong bộ tài liệu" --mode global
+```
+
+Useful LLM options:
+
+```bash
+python3 graph_rag.py ask "câu hỏi của bạn" --llm openai
+python3 graph_rag.py ask "câu hỏi của bạn" --llm none
+python3 graph_rag.py ask "câu hỏi của bạn" --llm-model "$OPENAI_MODEL"
+```
+
+Inspect graph stats:
+
+```bash
+python3 graph_rag.py inspect
+```
+
+Notes:
+
+- This is a local, dependency-light GraphRAG implementation. It does not require Neo4j, NetworkX, Leiden, or Microsoft GraphRAG.
+- Entity extraction is deterministic and heuristic, tuned for Vietnamese legal/regulatory PDFs.
+- OCR output receives a small Vietnamese cleanup pass for common OCR mistakes, but OCR quality still depends heavily on scan resolution and Tesseract language data.
+- Community detection uses weighted label propagation, not Leiden. It gives a practical local approximation without adding a graph dependency.
+- The extractive answer and source list work without an API key. With `OPENAI_API_KEY`, `ask` uses the graph context to generate a cited Vietnamese answer.
+
+
+
 ## Notes
 
 - This version does not call an LLM. It is the retrieval baseline you can use before adding embeddings, a vector database, or a generator model.
@@ -190,3 +279,4 @@ Notes:
 - Each extraction attempt has a timeout, so a malformed PDF will be skipped instead of blocking the whole build.
 - OCR requires `pdftoppm` and `tesseract`. This machine has English OCR data installed; install Vietnamese Tesseract data and run `--ocr-lang vie+eng` for better Vietnamese output.
 - `pypdf` is kept as a fallback, but PDFium/`pdfplumber` are usually better defaults for this corpus.
+
