@@ -2,6 +2,7 @@ rag_index.json
 advanced_rag_index.json
 advanced_index/
 faiss_index/
+graph_index/
 __pycache__/
 .venv/
 .DS_Store
