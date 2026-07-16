@@ -271,6 +271,59 @@ Notes:
 - The extractive answer and source list work without an API key. With `OPENAI_API_KEY`, `ask` uses the graph context to generate a cited Vietnamese answer.
 
 
+## Ontology RAG
+
+The ontology version is separate from the other retrievers. Unlike GraphRAG's
+free-form co-occurrence graph, it only creates nodes and typed facts allowed by
+the editable banking/legal schema in `banking_ontology.json`.
+
+It adds:
+
+- a document manifest with document number, type, issuer, date, and text-quality flags;
+- article-aware chunks with PDF page citations;
+- controlled concepts for banking actors, controls, risks, payments, and personal data;
+- typed facts such as `requires`, `prohibits`, `has_right`, `applies_to`,
+  `defines`, `references`, `amends`, and `replaces`;
+- hybrid BM25 + ontology retrieval with OCR-noise penalties and exact-document routing.
+
+Build directly from the PDFs (OCR fallbacks can take several minutes):
+
+```bash
+python3 ontology_rag.py build --extractor auto
+```
+
+If `graph_index/graph_rag_index.json` already contains the desired OCR text,
+reuse it to avoid repeating OCR:
+
+```bash
+python3 ontology_rag.py build \
+  --reuse-graph-index graph_index/graph_rag_index.json
+```
+
+Ask questions:
+
+```bash
+python3 ontology_rag.py ask "Chủ thể dữ liệu có những quyền gì?"
+python3 ontology_rag.py ask "Tổ chức tín dụng phi ngân hàng phải làm gì về hệ thống kiểm soát nội bộ?"
+python3 ontology_rag.py ask "Thông tư 09/2020/TT-NHNN quy định gì về an toàn hệ thống thông tin?"
+```
+
+`ask` automatically uses OpenAI when `OPENAI_API_KEY` is available. Pass
+`--llm none` to inspect retrieval without generation.
+
+Inspect the ontology index and document quality manifest:
+
+```bash
+python3 ontology_rag.py inspect
+```
+
+Default index path: `ontology_index/ontology_rag_index.json`.
+
+Extend the ontology by adding concepts and aliases to `banking_ontology.json`,
+then rebuild the index. Keeping the schema reviewed and relatively small is what
+prevents OCR fragments and incidental phrases from becoming graph entities.
+
+
 
 ## Notes
 
@@ -279,4 +332,3 @@ Notes:
 - Each extraction attempt has a timeout, so a malformed PDF will be skipped instead of blocking the whole build.
 - OCR requires `pdftoppm` and `tesseract`. This machine has English OCR data installed; install Vietnamese Tesseract data and run `--ocr-lang vie+eng` for better Vietnamese output.
 - `pypdf` is kept as a fallback, but PDFium/`pdfplumber` are usually better defaults for this corpus.
-
